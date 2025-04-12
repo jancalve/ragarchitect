@@ -1,0 +1,17 @@
+# Use the specified base image
+FROM --platform=linux/arm64 amazoncorretto:21
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the application JAR file to the container
+COPY target/ragarchitect-1.0.0-SNAPSHOT.jar app.jar
+
+# Set JVM options
+ENV JAVA_OPTS="-Xms512m -Xmx512m"
+
+# Expose the server port
+EXPOSE 8080
+
+# Specify the main class to run
+ENTRYPOINT ["java", "-jar", "app.jar"]

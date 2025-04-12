@@ -1,0 +1,110 @@
+services:
+  rag-architect:
+    platform: linux/arm64
+    container_name: backend
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    environment:
+      - SPRING_PROFILES_ACTIVE=generic
+      - GENERIC_SERVER_URL=https://bedrock.devaws.company.com/bedrock/converse
+      - VLLM_SERVER_URL=http://vllm:8082
+      - JAVA_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    depends_on:
+      - qdrant
+      - embedding-service
+    profiles:
+      - generic
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.1
+    container_name: qdrant
+    ports:
+      - "6334:6334"
+      - "8081:6333"
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    volumes:
+      - qdrant_data:/qdrant/storage
+    profiles:
+      - generic
+
+  git-indexer-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.git-indexer
+    volumes:
+      - ./app/models/all-MiniLM-L6-v2:/app/models/all-MiniLM-L6-v2
+    environment:
+      - GIT_TOKEN=${GIT_TOKEN}
+      - PYTHONUNBUFFERED=1
+      - QDRANT_URL=http://qdrant:6333
+      - PROJECT_NAME=ragarchitect
+      - GIT_REPO_URL=https://github.com/jancalve/ragarchitect
+      - IGNORE_PATHS=src/test
+      - RECREATE_COLLECTION=true
+      - INDEXER_ENABLED=true
+      - EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+    profiles:
+      - generic
+
+  confluence-indexer-1:
+    container_name: confluence-indexer
+    build:
+      context: .
+      dockerfile: Dockerfile.confluence-indexer
+    volumes:
+      - ./app/models/all-MiniLM-L6-v2:/app/models/all-MiniLM-L6-v2
+    environment:
+      - CONFLUENCE_TOKEN=${CONFLUENCE_TOKEN}
+      - PYTHONUNBUFFERED=1
+      - QDRANT_URL=http://qdrant:6333
+      - CONFLUENCE_DOMAIN=https://company.atlassian.net
+      - CONFLUENCE_SPACE=RAGArchitect
+      - PAGE_LABELS=tech-doc,team
+      - RECREATE_COLLECTION=true
+      - INDEXER_ENABLED=true
+      - EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+    depends_on:
+      - qdrant
+    profiles:
+      - generic
+
+  static-prompt-indexer-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.static-prompts-indexer
+    volumes:
+      - ./app/models/all-MiniLM-L6-v2:/app/models/all-MiniLM-L6-v2
+    environment:
+      - PYTHONUNBUFFERED=1
+      - QDRANT_URL=http://qdrant:6333
+      - PROJECT_NAME=prompts
+      - RECREATE_COLLECTION=true
+      - INDEXER_ENABLED=true
+      - EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+    depends_on:
+      - qdrant
+    profiles:
+      - generic
+
+  embedding-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.embedding-service
+    volumes:
+      - ./app/models/all-MiniLM-L6-v2:/app/models/all-MiniLM-L6-v2
+    environment:
+      - EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+    profiles:
+      - generic
+
+volumes:
+  qdrant_data:
+
+networks:
+  ollama-docker:
+    external: false

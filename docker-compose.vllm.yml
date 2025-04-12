@@ -1,0 +1,66 @@
+services:
+  rag-architect:
+    platform: linux/amd64
+    container_name: backend
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    environment:
+      - SPRING_PROFILES_ACTIVE=vllm
+      - LLM_MODEL_PATH=${LLM_MODEL_PATH:-/app/models/Llama-3.2-3B-Instruct}
+      - GENERIC_SERVER_URL=https://bedrock.devaws.company.com/bedrock/converse
+      - VLLM_SERVER_URL=http://vllm:8082
+      - JAVA_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    depends_on:
+      - qdrant
+      - embedding-service
+    profiles:
+      - vllm
+
+  qdrant:
+    profiles:
+      - vllm
+
+  git-indexer-1:
+    profiles:
+      - vllm
+
+  confluence-indexer-1:
+    profiles:
+      - vllm
+
+  static-prompt-indexer-1:
+    profiles:
+      - vllm
+
+  embedding-service:
+    profiles:
+      - vllm
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    platform: linux/amd64
+    ports:
+      - "8082:8082"
+    container_name: vllm
+    environment:
+      - VLLM_MODEL_PATH=${LLM_MODEL_PATH:-/app/models/Llama-3.2-3B-Instruct}
+      - CUDA_VISIBLE_DEVICES=-1
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '2'
+    volumes:
+      - ./app/models/Llama-3.2-3B-Instruct:/app/models/Llama-3.2-3B-Instruct
+    command: ["--device", "cpu",
+              "--model", "${LLM_MODEL_PATH:-/app/models/Llama-3.2-3B-Instruct}",
+              "--disable-async-output-proc",
+              "--max-model-len", "4096",
+              "--load-format", "safetensors",
+              "--model-impl", "transformers"]
+    profiles:
+      - vllm 

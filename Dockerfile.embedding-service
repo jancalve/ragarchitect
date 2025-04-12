@@ -1,0 +1,31 @@
+# Dockerfile.embedding-service
+FROM python:3.9-slim
+
+# Install system packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python libraries
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 --trusted-host download.pytorch.org \
+    install \
+    boto3 \
+    flask \
+    sentence-transformers \
+    torch \
+    --extra-index-url http://download.pytorch.org/whl/cpu
+
+# Pre-download the model
+#COPY app/models/all-MiniLM-L6-v2 app/models/all-MiniLM-L6-v2
+
+# Copy the embedding service script
+COPY embedding_service_script.py .
+
+# Expose the port
+EXPOSE 8080
+
+# Define the entry point
+CMD ["python3", "embedding_service_script.py"]

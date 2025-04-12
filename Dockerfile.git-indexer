@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1.3
+FROM python:3.9-slim
+
+# 1) Install needed system packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 2) Install Python libraries (including Sentence Transformers, Torch, Qdrant, etc.)
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip3 --trusted-host download.pytorch.org \
+  install \
+  javalang \
+  torch \
+  pyesprima \
+  sentence-transformers \
+  qdrant-client \
+  gitpython \
+  --extra-index-url http://download.pytorch.org/whl/cpu
+
+
+# 3) **Pre-download the model** from Hugging Face and store it in /app/model
+#    This command fetches "sentence-transformers/all-MiniLM-L6-v2" at build time.
+
+#COPY app/models/all-MiniLM-L6-v2 app/models/all-MiniLM-L6-v2
+
+# 5) Copy your index script
+COPY git_indexer_script.py .
+
+# Optional: configure git if needed
+RUN git config --global http.postBuffer 52428800 && \
+    git config --global core.compression 0 && \
+    git config --global pack.window 1 && \
+    git config --global pack.depth 1 && \
+    git config --global http.sslVerify false
+
+# 6) At runtime, run index_script.py, which now can load from /app/model
+ENTRYPOINT ["python3", "git_indexer_script.py"]

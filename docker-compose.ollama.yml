@@ -1,0 +1,68 @@
+services:
+  rag-architect:
+    platform: linux/amd64
+    container_name: backend
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ollama
+      - GENERIC_SERVER_URL=https://bedrock.devaws.company.com/bedrock/converse
+      - VLLM_SERVER_URL=http://vllm:8082
+      - JAVA_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      - OLLAMA_SERVER_MODEL=llama3.2:3b
+    depends_on:
+      - qdrant
+      - embedding-service
+    profiles:
+      - ollama
+
+  qdrant:
+    profiles:
+      - ollama
+
+  git-indexer-1:
+    profiles:
+      - ollama
+
+  confluence-indexer-1:
+    profiles:
+      - ollama
+
+  static-prompt-indexer-1:
+    profiles:
+      - ollama
+
+  embedding-service:
+    profiles:
+      - ollama
+
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: "6"
+          memory: "10G"
+        reservations:
+          cpus: "4"
+          memory: "6G"
+    ports:
+      - 7869:11434
+    container_name: ollama
+    tty: true
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MODELS=/root/.ollama/models
+    platform: linux/arm64
+    volumes:
+      - ./app/models:/root/.ollama/models
+    profiles:
+      - ollama 
